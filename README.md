@@ -1,36 +1,123 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🚀 Project Unicorn AWS - Phase 2: Advanced CI/CD Learning
 
-## Getting Started
+This is the **AWS-focused version** of Project Unicorn, designed for learning enterprise-level CI/CD with Docker containers and AWS services.
 
-First, run the development server:
+## 🎯 Learning Objectives
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+### **What You'll Master in Phase 2:**
+- **AWS ECS (Elastic Container Service)** - Container orchestration
+- **AWS ECR (Elastic Container Registry)** - Docker image storage
+- **AWS Application Load Balancer** - Traffic routing and SSL
+- **AWS Route53** - DNS management for dev/qa/prod
+- **GitHub Actions + AWS** - Advanced CI/CD pipelines
+- **Infrastructure as Code** - Managing AWS resources with code
+- **Multi-Environment Strategy** - dev, qa, prod workflows
+
+## 🏗️ Architecture Overview
+
+```
+GitHub → GitHub Actions → Build Docker → Push to ECR → Deploy to ECS
+                                                          ↓
+                                    ALB (Load Balancer) → Route53 (DNS)
+                                          ↓
+                          dev.unsugar.io | qa.unsugar.io | unsugar.io
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🌍 Environments
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Environment | URL | Purpose | AWS Resources |
+|-------------|-----|---------|---------------|
+| **Development** | `dev.unsugar.io` | Feature development | ECS Service, ALB Target Group |
+| **QA** | `qa.unsugar.io` | Testing and validation | ECS Service, ALB Target Group |
+| **Production** | `unsugar.io` | Live application | ECS Service, ALB Target Group |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🛠️ Tech Stack
 
-## Learn More
+- **Frontend**: Next.js 15, React 18, TypeScript, Tailwind CSS
+- **Containerization**: Docker (multi-stage builds)
+- **CI/CD**: GitHub Actions
+- **Cloud**: AWS (ECS, ECR, ALB, Route53, CloudFormation)
+- **DNS**: Route53 with custom domain (unsugar.io)
 
-To learn more about Next.js, take a look at the following resources:
+## 🚀 Phase 2 Implementation Status
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### **Phase 2A: Foundation & Safety**
+- [x] Clone project and create new GitHub repo
+- [x] AWS account setup with budget limits
+- [x] IAM user/role configuration
+- [x] Cost monitoring setup
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### **Phase 2B: Container Infrastructure**
+- [x] AWS ECR repository setup
+- [x] GitHub Actions workflow for ECR
+- [ ] ECS cluster creation
+- [ ] Task definitions and services
+- [ ] Application Load Balancer configuration
 
-## Deploy on Vercel
+### **Phase 2C: Multi-Environment CI/CD**
+- [ ] Development environment pipeline
+- [ ] QA environment pipeline
+- [ ] DNS configuration (dev.unsugar.io, qa.unsugar.io)
+- [ ] Environment-specific configurations
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### **Phase 2D: Production & Advanced Features**
+- [ ] Production deployment pipeline
+- [ ] Blue-green deployment strategy
+- [ ] Monitoring and logging
+- [ ] Rollback procedures
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 💰 Cost Management
+
+### **Estimated Monthly Costs (Learning Phase)**
+- ECS Fargate: ~$10-20/month
+- ALB: ~$20/month
+- ECR: ~$1-5/month
+- Route53: ~$0.50/month
+- **Total**: ~$30-45/month for learning
+
+### **Budget Safety Measures**
+- AWS Budget alerts at $25, $40, $50
+- Resource tagging for cost tracking
+- Automatic resource cleanup scripts
+- Regular cost reviews
+
+## 🔧 Local Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Build Docker image
+docker build -t project-unicorn-aws .
+
+# Run container locally
+docker run -p 3000:3000 project-unicorn-aws
+```
+
+## 📚 Learning Resources
+
+This project teaches enterprise-level concepts used by companies like:
+- Netflix (container orchestration)
+- Spotify (multi-environment deployments)
+- Airbnb (infrastructure as code)
+- Uber (blue-green deployments)
+
+## 🏆 Skills You'll Gain
+
+By completing Phase 2, you'll have learned:
+- **DevOps Engineering** fundamentals
+- **Container orchestration** in production
+- **Multi-environment** deployment strategies
+- **Infrastructure as Code** best practices
+- **Cost optimization** in cloud environments
+- **Monitoring and observability** setup
+
+---
+
+**Ready to start your AWS DevOps journey?** 🚀
