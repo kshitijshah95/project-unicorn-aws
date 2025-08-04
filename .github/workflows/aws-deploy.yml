@@ -1,0 +1,103 @@
+# AWS CI/CD Pipeline for Project Unicorn
+name: AWS CI/CD Pipeline
+
+# Trigger on pushes to main and pull requests
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Environment variables
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: project-unicorn-aws
+  ECS_SERVICE: project-unicorn-service
+  ECS_CLUSTER: project-unicorn-cluster
+  ECS_TASK_DEFINITION: .aws/task-definition.json
+  CONTAINER_NAME: project-unicorn-container
+
+jobs:
+  # Job 1: Build and Test
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run linting
+      run: npm run lint
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Build and test Docker image locally
+      run: |
+        docker build -t $ECR_REPOSITORY:test .
+        docker run --rm -d -p 3000:3000 --name test-container $ECR_REPOSITORY:test
+        sleep 10
+        # Basic health check
+        curl -f http://localhost:3000 || exit 1
+        docker stop test-container
+
+  # Job 2: Deploy to AWS (only on main branch pushes)
+  deploy:
+    name: Deploy to AWS
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v3
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build, tag, and push Docker image to ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Build Docker image
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+        
+        # Push to ECR
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+        # Output image URI for next steps
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Download task definition template
+      run: |
+        # We'll create this file in the next step
+        echo "Task definition will be created in next step"
+
+    # Note: ECS deployment step will be added after we create the ECS cluster
+    - name: Deploy status
+      run: |
+        echo "🚀 Docker image built and pushed successfully!"
+        echo "Image URI: ${{ steps.build-image.outputs.image }}"
+        echo "Ready for ECS deployment setup!"
