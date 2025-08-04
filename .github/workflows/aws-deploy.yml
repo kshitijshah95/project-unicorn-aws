@@ -10,7 +10,7 @@ on:
 
 # Environment variables
 env:
-  AWS_REGION: us-east-1
+  AWS_REGION: us-east-2
   ECR_REPOSITORY: project-unicorn-aws
   ECS_SERVICE: project-unicorn-service
   ECS_CLUSTER: project-unicorn-cluster
