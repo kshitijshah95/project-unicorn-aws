@@ -102,13 +102,58 @@ jobs:
         # Output image URI for next steps
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-    - name: Update ECS Service
+    - name: Download current task definition
+      run: |
+        echo "📝 Getting current task definition..."
+        aws ecs describe-task-definition \
+          --task-definition project-unicorn-task \
+          --region $AWS_REGION \
+          --query 'taskDefinition' > task-def.json
+        
+        # Remove unnecessary fields
+        cat task-def.json | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)' > clean-task-def.json
+
+    - name: Update task definition with new image
+      id: update-task-def
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: dev-${{ github.sha }}
+      run: |
+        echo "🔄 Updating task definition with new image..."
+        NEW_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+        echo "New image URI: $NEW_IMAGE"
+        
+        # Show current image before update
+        echo "Current image in task def:"
+        cat clean-task-def.json | jq -r '.containerDefinitions[0].image'
+        
+        # Update the image URI in the task definition
+        cat clean-task-def.json | jq --arg IMAGE "$NEW_IMAGE" '.containerDefinitions[0].image = $IMAGE' > updated-task-def.json
+        
+        # Verify the update worked
+        echo "Updated image in task def:"
+        cat updated-task-def.json | jq -r '.containerDefinitions[0].image'
+        
+        # Register new task definition revision
+        echo "📝 Registering new task definition revision..."
+        NEW_REVISION=$(aws ecs register-task-definition \
+          --cli-input-json file://updated-task-def.json \
+          --region $AWS_REGION \
+          --query 'taskDefinition.revision' \
+          --output text)
+        
+        echo "New task definition revision: $NEW_REVISION"
+        echo "task_revision=$NEW_REVISION" >> $GITHUB_OUTPUT
+
+    - name: Update ECS Service with new task definition
       run: |
         echo "🔄 Updating ECS service: project-unicorn-service-v2"
+        echo "Using task definition: project-unicorn-task:${{ steps.update-task-def.outputs.task_revision }}"
+        
         aws ecs update-service \
           --cluster $ECS_CLUSTER \
           --service project-unicorn-service-v2 \
-          --force-new-deployment \
+          --task-definition "project-unicorn-task:${{ steps.update-task-def.outputs.task_revision }}" \
           --region $AWS_REGION
         
         echo "⏳ Waiting for service to stabilize..."
