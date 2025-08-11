@@ -104,17 +104,17 @@ jobs:
 
     - name: Update ECS Service
       run: |
-        echo "🔄 Updating ECS service with new image..."
+        echo "🔄 Updating ECS service: project-unicorn-service-v2"
         aws ecs update-service \
           --cluster $ECS_CLUSTER \
-          --service project-unicorn-service \
+          --service project-unicorn-service-v2 \
           --force-new-deployment \
           --region $AWS_REGION
         
         echo "⏳ Waiting for service to stabilize..."
         aws ecs wait services-stable \
           --cluster $ECS_CLUSTER \
-          --services project-unicorn-service \
+          --services project-unicorn-service-v2 \
           --region $AWS_REGION
     
     - name: Deploy to Dev Environment
