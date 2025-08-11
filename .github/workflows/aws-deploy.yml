@@ -102,12 +102,28 @@ jobs:
         # Output image URI for next steps
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
+    - name: Update ECS Service
+      run: |
+        echo "🔄 Updating ECS service with new image..."
+        aws ecs update-service \
+          --cluster $ECS_CLUSTER \
+          --service project-unicorn-service \
+          --force-new-deployment \
+          --region $AWS_REGION
+        
+        echo "⏳ Waiting for service to stabilize..."
+        aws ecs wait services-stable \
+          --cluster $ECS_CLUSTER \
+          --services project-unicorn-service \
+          --region $AWS_REGION
+    
     - name: Deploy to Dev Environment
       run: |
         echo "🚀 Deployed to DEV environment!"
         echo "Branch: ${{ github.ref_name }}"
-        echo "Domain: dev.unsugar.io"
+        echo "Domain: dev.unsugar.io (or ALB DNS)"
         echo "Image URI: ${{ steps.build-image.outputs.image }}"
+        echo "✅ ECS service updated with latest image!"
         echo "✅ Ready for QA promotion!"
 
   # Job 3: Manual Promotion to QA/Prod
