@@ -1,20 +1,29 @@
 # AWS CI/CD Pipeline for Project Unicorn
 name: AWS CI/CD Pipeline
 
-# Trigger on pushes to main and pull requests
+# Trigger on pushes to main branch and manual workflow dispatch
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+        - dev
+        - qa
+        - prod
 
 # Environment variables
 env:
   AWS_REGION: us-east-2
   ECR_REPOSITORY: project-unicorn-aws
-  ECS_SERVICE: project-unicorn-service
-  ECS_CLUSTER: project-unicorn-cluster
-  ECS_TASK_DEFINITION: .aws/task-definition.json
+  ECS_CLUSTER: project-unicorn-cluster-1
   CONTAINER_NAME: project-unicorn-container
 
 jobs:
@@ -51,12 +60,13 @@ jobs:
         curl -f http://localhost:3000 || exit 1
         docker stop test-container
 
-  # Job 2: Deploy to AWS (only on main branch pushes)
-  deploy:
-    name: Deploy to AWS
+  # Job 2: Deploy to Development (auto on push)
+  deploy-dev:
+    name: Deploy to Development
     needs: build-and-test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: dev
     
     steps:
     - name: Checkout code
@@ -79,27 +89,97 @@ jobs:
       id: build-image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: ${{ github.sha }}
+        IMAGE_TAG: dev-${{ github.sha }}
       run: |
-        # Build Docker image
+        # Build Docker image for dev environment
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:dev-latest .
         
-        # Push to ECR
+        # Push to ECR with dev tags
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:dev-latest
         
         # Output image URI for next steps
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-    - name: Download task definition template
+    - name: Deploy to Dev Environment
       run: |
-        # We'll create this file in the next step
-        echo "Task definition will be created in next step"
-
-    # Note: ECS deployment step will be added after we create the ECS cluster
-    - name: Deploy status
-      run: |
-        echo "🚀 Docker image built and pushed successfully!"
+        echo "🚀 Deployed to DEV environment!"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Domain: dev.unsugar.io"
         echo "Image URI: ${{ steps.build-image.outputs.image }}"
-        echo "Ready for ECS deployment setup!"
+        echo "✅ Ready for QA promotion!"
+
+  # Job 3: Manual Promotion to QA/Prod
+  promote:
+    name: Promote to Environment
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    environment: ${{ github.event.inputs.environment }}
+    
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v3
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+      with:
+        mask-password: true
+
+    - name: Promote Image to Environment
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        TARGET_ENV: ${{ github.event.inputs.environment }}
+      run: |
+        # Get the latest dev image and promote it
+        SOURCE_TAG="dev-latest"
+        TARGET_TAG="$TARGET_ENV-latest"
+        TARGET_COMMIT_TAG="$TARGET_ENV-${{ github.sha }}"
+        
+        echo "🔄 Promoting image from dev to $TARGET_ENV"
+        
+        # Pull the dev image
+        docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$SOURCE_TAG
+        
+        # Re-tag for target environment
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$SOURCE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$TARGET_TAG
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$SOURCE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$TARGET_COMMIT_TAG
+        
+        # Push promoted images
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$TARGET_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$TARGET_COMMIT_TAG
+        
+        echo "✅ Image promoted to $TARGET_ENV environment!"
+
+    - name: Deploy to Target Environment
+      env:
+        TARGET_ENV: ${{ github.event.inputs.environment }}
+      run: |
+        case $TARGET_ENV in
+          "qa")
+            DOMAIN="qa.unsugar.io"
+            SERVICE="project-unicorn-service-qa"
+            ;;
+          "prod")
+            DOMAIN="unsugar.io"
+            SERVICE="project-unicorn-service"
+            ;;
+          *)
+            DOMAIN="dev.unsugar.io"
+            SERVICE="project-unicorn-service-dev"
+            ;;
+        esac
+        
+        echo "🚀 Promoting to $TARGET_ENV environment!"
+        echo "Domain: $DOMAIN"
+        echo "Service: $SERVICE"
+        echo "✅ Promotion complete!"
